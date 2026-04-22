@@ -10,10 +10,11 @@ export const config = {
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || '',
   },
-  anthropic: {
-    apiKey: process.env.ANTHROPIC_API_KEY || '',
-    model: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
-    maxTokens: parseInt(process.env.ANTHROPIC_MAX_TOKENS || '1024'),
+  llm: {
+    apiKey: process.env.OPENROUTER_API_KEY || process.env.ANTHROPIC_API_KEY || '',
+    model: process.env.LLM_MODEL || 'anthropic/claude-3.5-sonnet',
+    maxTokens: parseInt(process.env.LLM_MAX_TOKENS || '1024'),
+    baseURL: process.env.LLM_BASE_URL || 'https://openrouter.ai/api/v1',
   },
   session: {
     tokenTtlHours: parseInt(process.env.SESSION_TTL_HOURS || '48'),

@@ -1,26 +1,21 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { config } from '../config';
 import { buildSystemPrompt, PromptContext } from '../prompt/systemPrompt';
 import { logUsage } from './stateMachine';
 
-const client = new Anthropic({ apiKey: config.anthropic.apiKey });
+const client = new OpenAI({
+  apiKey: config.llm.apiKey,
+  baseURL: config.llm.baseURL,
+  defaultHeaders: {
+    'HTTP-Referer': 'https://interview-platform.local',
+    'X-Title': 'Interview Platform',
+  },
+});
 
-const FALLBACK_RESPONSES: Record<string, Record<string, string>> = {
-  ru: {
-    default: 'Расскажи подробнее — что именно ты имеешь в виду?',
-    probe: 'Можешь привести пример?',
-    transition: 'Понял. Идём дальше.',
-  },
-  en: {
-    default: 'Tell me more — what exactly do you mean?',
-    probe: 'Can you give an example?',
-    transition: 'Got it. Moving on.',
-  },
-  tr: {
-    default: 'Daha fazla anlat — tam olarak ne demek istiyorsun?',
-    probe: 'Bir örnek verebilir misin?',
-    transition: 'Anladım. Devam edelim.',
-  },
+const FALLBACK: Record<string, string> = {
+  ru: 'Расскажи подробнее — что именно ты имеешь в виду?',
+  en: 'Tell me more — what exactly do you mean?',
+  tr: 'Daha fazla anlat — tam olarak ne demek istiyorsun?',
 };
 
 export async function callLLM(
@@ -30,7 +25,8 @@ export async function callLLM(
 ): Promise<string> {
   const systemPrompt = buildSystemPrompt(ctx);
 
-  const messages: Anthropic.MessageParam[] = [
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
     ...ctx.recentHistory.map((m) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
@@ -39,27 +35,20 @@ export async function callLLM(
   ];
 
   try {
-    const response = await client.messages.create({
-      model: config.anthropic.model,
-      max_tokens: config.anthropic.maxTokens,
-      system: systemPrompt,
+    const response = await client.chat.completions.create({
+      model: config.llm.model,
+      max_tokens: config.llm.maxTokens,
       messages,
     });
 
-    const inputTokens = response.usage.input_tokens;
-    const outputTokens = response.usage.output_tokens;
-    await logUsage(sessionId, config.anthropic.model, inputTokens, outputTokens);
+    const inputTokens = response.usage?.prompt_tokens ?? 0;
+    const outputTokens = response.usage?.completion_tokens ?? 0;
+    await logUsage(sessionId, config.llm.model, inputTokens, outputTokens);
 
-    const text = response.content
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as Anthropic.TextBlock).text)
-      .join('');
-
-    return text.trim();
+    return response.choices[0]?.message?.content?.trim() ?? FALLBACK[ctx.language];
   } catch (err) {
     console.error('LLM error:', err);
-    const lang = ctx.language;
-    return FALLBACK_RESPONSES[lang]?.default ?? FALLBACK_RESPONSES.en.default;
+    return FALLBACK[ctx.language] ?? FALLBACK.en;
   }
 }
 
@@ -70,7 +59,8 @@ export async function* streamLLM(
 ): AsyncGenerator<string> {
   const systemPrompt = buildSystemPrompt(ctx);
 
-  const messages: Anthropic.MessageParam[] = [
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
     ...ctx.recentHistory.map((m) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
@@ -79,34 +69,30 @@ export async function* streamLLM(
   ];
 
   try {
-    const stream = await client.messages.stream({
-      model: config.anthropic.model,
-      max_tokens: config.anthropic.maxTokens,
-      system: systemPrompt,
+    const stream = await client.chat.completions.create({
+      model: config.llm.model,
+      max_tokens: config.llm.maxTokens,
       messages,
+      stream: true,
     });
 
-    let fullText = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+
     for await (const chunk of stream) {
-      if (
-        chunk.type === 'content_block_delta' &&
-        chunk.delta.type === 'text_delta'
-      ) {
-        fullText += chunk.delta.text;
-        yield chunk.delta.text;
+      const text = chunk.choices[0]?.delta?.content ?? '';
+      if (text) yield text;
+      if (chunk.usage) {
+        inputTokens = chunk.usage.prompt_tokens ?? 0;
+        outputTokens = chunk.usage.completion_tokens ?? 0;
       }
     }
 
-    const final = await stream.finalMessage();
-    await logUsage(
-      sessionId,
-      config.anthropic.model,
-      final.usage.input_tokens,
-      final.usage.output_tokens
-    );
+    if (inputTokens > 0) {
+      await logUsage(sessionId, config.llm.model, inputTokens, outputTokens);
+    }
   } catch (err) {
     console.error('LLM stream error:', err);
-    const lang = ctx.language;
-    yield FALLBACK_RESPONSES[lang]?.default ?? FALLBACK_RESPONSES.en.default;
+    yield FALLBACK[ctx.language] ?? FALLBACK.en;
   }
 }
