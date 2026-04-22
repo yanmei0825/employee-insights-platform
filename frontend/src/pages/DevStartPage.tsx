@@ -4,7 +4,7 @@ import { createSession } from '../api/survey';
 
 // Dev/demo page to bootstrap a session with a projectId
 export default function DevStartPage() {
-  const [projectId, setProjectId] = useState('');
+  const [projectId, setProjectId] = useState('a374274f-0f20-4e17-a9ed-7fd042398a76');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
