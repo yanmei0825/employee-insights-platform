@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config';
 import { runMigrations } from './db/migrations';
 import { surveyRouter } from './survey/router';
+import { adminRouter } from './admin/router';
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use(
 );
 
 app.use('/survey', surveyRouter);
+app.use('/admin', adminRouter);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
