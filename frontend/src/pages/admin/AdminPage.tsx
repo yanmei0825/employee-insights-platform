@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminApi, Company } from '../../api/admin';
+import AdminLayout from '../../components/AdminLayout';
 
 export default function AdminPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -23,59 +24,82 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
     if (!confirm('Delete company and all its projects?')) return;
     await adminApi.deleteCompany(id);
     await load();
   }
 
   return (
-    <div style={s.page}>
-      <div style={s.header}>
-        <h1 style={s.title}>Companies</h1>
+    <AdminLayout>
+      <div style={s.pageHeader}>
+        <div>
+          <h1 style={s.title}>Companies</h1>
+          <p style={s.subtitle}>Manage companies and their interview projects</p>
+        </div>
       </div>
 
-      <div style={s.createRow}>
+      <div style={s.createCard}>
         <input
           style={s.input}
-          placeholder="New company name"
+          placeholder="Company name"
           value={newName}
           onChange={e => setNewName(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleCreate()}
         />
         <button style={s.btn} onClick={handleCreate} disabled={loading || !newName.trim()}>
-          + Add
+          {loading ? '...' : '+ Add Company'}
         </button>
       </div>
 
-      <div style={s.list}>
+      <div style={s.grid}>
         {companies.map(c => (
-          <div key={c.id} style={s.card}>
-            <div style={s.cardMain} onClick={() => navigate(`/admin/companies/${c.id}`)}>
-              <span style={s.cardName}>{c.name}</span>
-              <span style={s.cardMeta}>{c.project_count} project{c.project_count !== 1 ? 's' : ''}</span>
+          <div key={c.id} style={s.card} onClick={() => navigate(`/admin/companies/${c.id}`)}>
+            <div style={s.cardIcon}>🏢</div>
+            <div style={s.cardBody}>
+              <div style={s.cardName}>{c.name}</div>
+              <div style={s.cardMeta}>
+                {c.project_count} project{Number(c.project_count) !== 1 ? 's' : ''}
+              </div>
             </div>
-            <button style={s.deleteBtn} onClick={() => handleDelete(c.id)}>✕</button>
+            <div style={s.cardActions}>
+              <button style={s.arrowBtn}>→</button>
+              <button style={s.deleteBtn} onClick={e => handleDelete(e, c.id)}>✕</button>
+            </div>
           </div>
         ))}
-        {companies.length === 0 && <p style={s.empty}>No companies yet</p>}
       </div>
-    </div>
+
+      {companies.length === 0 && (
+        <div style={s.empty}>
+          <div style={s.emptyIcon}>🏢</div>
+          <div style={s.emptyText}>No companies yet</div>
+          <div style={s.emptyHint}>Add your first company above</div>
+        </div>
+      )}
+    </AdminLayout>
   );
 }
 
 const s: Record<string, React.CSSProperties> = {
-  page: { maxWidth: 720, margin: '0 auto', padding: '40px 24px', fontFamily: 'system-ui, sans-serif' },
-  header: { marginBottom: 32 },
-  title: { fontSize: 28, fontWeight: 700, color: '#111', margin: 0 },
-  createRow: { display: 'flex', gap: 10, marginBottom: 24 },
-  input: { flex: 1, padding: '10px 14px', fontSize: 15, border: '1px solid #d1d5db', borderRadius: 8, outline: 'none' },
-  btn: { padding: '10px 20px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 14 },
-  list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  card: { display: 'flex', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 16px', background: '#fff', cursor: 'pointer' },
-  cardMain: { flex: 1, display: 'flex', alignItems: 'center', gap: 12 },
-  cardName: { fontSize: 16, fontWeight: 600, color: '#111' },
-  cardMeta: { fontSize: 13, color: '#6b7280' },
-  deleteBtn: { background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 16, padding: '4px 8px' },
-  empty: { color: '#9ca3af', textAlign: 'center', padding: '40px 0' },
+  pageHeader: { marginBottom: 32 },
+  title: { fontSize: 28, fontWeight: 700, color: '#0f172a', margin: '0 0 4px' },
+  subtitle: { fontSize: 14, color: '#64748b', margin: 0 },
+  createCard: { display: 'flex', gap: 12, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '16px 20px', marginBottom: 28, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  input: { flex: 1, padding: '10px 14px', fontSize: 14, border: '1px solid #e2e8f0', borderRadius: 8, outline: 'none', color: '#0f172a', background: '#f8fafc' },
+  btn: { padding: '10px 20px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 14, whiteSpace: 'nowrap' },
+  grid: { display: 'flex', flexDirection: 'column', gap: 10 },
+  card: { display: 'flex', alignItems: 'center', gap: 16, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px 20px', cursor: 'pointer', transition: 'box-shadow 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  cardIcon: { fontSize: 28, width: 48, height: 48, background: '#eef2ff', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  cardBody: { flex: 1 },
+  cardName: { fontSize: 16, fontWeight: 600, color: '#0f172a', marginBottom: 2 },
+  cardMeta: { fontSize: 13, color: '#64748b' },
+  cardActions: { display: 'flex', alignItems: 'center', gap: 4 },
+  arrowBtn: { background: 'none', border: 'none', color: '#6366f1', fontSize: 18, cursor: 'pointer', padding: '4px 8px' },
+  deleteBtn: { background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: 14, padding: '4px 8px', borderRadius: 6 },
+  empty: { textAlign: 'center', padding: '80px 0' },
+  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyText: { fontSize: 18, fontWeight: 600, color: '#334155', marginBottom: 6 },
+  emptyHint: { fontSize: 14, color: '#94a3b8' },
 };
